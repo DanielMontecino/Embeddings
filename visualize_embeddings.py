@@ -16,13 +16,12 @@ import keras.backend as K
 
 if __name__ == '__main__':
     pass
-def visualize_embeddings(database='mnist', model_dir='exp/mnist/run_13/', model_name='model_weights.h5', sprite=False):
-    #database = 'mnist'
-    #model_dir = 'exp/mnist/run_2/'
-    #model_name = 'model_weights.h5'
+
+
+def visualize_embeddings(database='mnist', model_dir='exp/mnist/run_13/', model_name='model_weights.h5', sprite=False,
+                         model=None):
     sprite_filename = '/home/daniel/models-tensorflow/tensorflow-triplet-loss/experiments/mnist_10k_sprite.png'
-    tf.reset_default_graph()
-    K.clear_session()
+
     tf.logging.set_verbosity(tf.logging.INFO)
 
     if database=='mnist':
@@ -36,7 +35,12 @@ def visualize_embeddings(database='mnist', model_dir='exp/mnist/run_13/', model_
         raise AssertionError
 
     # Load the parameters from json file
-    estimator = load_model(model_dir+model_name)
+    if model is None:
+        tf.reset_default_graph()
+        K.clear_session()
+        estimator = load_model(model_dir+model_name)
+    else:
+        estimator = model
 
     # Compute embeddings on the test set
     tf.logging.info("Predicting")

@@ -6,8 +6,6 @@ from keras.layers import Dense, Dropout, Flatten, BatchNormalization, InputLayer
 from keras import backend as K
 from keras.layers import Conv2D, Activation, MaxPooling2D
 
-
-
 def some_loss(y_true, y_pred):
     return K.max(y_pred, axis=None, keepdims=False)
     print(y_true.shape, y_pred.shape)
@@ -15,9 +13,8 @@ def some_loss(y_true, y_pred):
     return K.mean(K.square(maximum_feat - y_true), axis=-1)
 
 
-def get_pretrained_model(trainable=True, layer_limit = 173, loss = None,
-                         opt = None, embedding_dim = None,
-                         input_shape=(224, 224, 3), metrics=None, drop=0.25, blocks=None):
+def get_pretrained_model(trainable=True, layer_limit = 173, embedding_dim = None,
+                         input_shape=(224, 224, 3), drop=0.25, blocks=None):
     """Get ResNet50 model."""
     main_model = ResNet50(weights='imagenet', include_top=False, input_tensor=Input(shape=input_shape))
 
@@ -40,19 +37,15 @@ def get_pretrained_model(trainable=True, layer_limit = 173, loss = None,
                   outputs=top_model(main_model.output))
 
     model.summary()
-    model.compile(loss=loss,
-                  optimizer=opt,
-                  metrics=metrics)
-
     return model
 
 
-def get_base_model(loss=None, opt=None, embedding_dim=512, metrics=None, input_shape=(32, 32, 3), drop=0.25, blocks=2):
+def get_base_model(embedding_dim=512, input_shape=(32, 32, 3), drop=0.25, blocks=2, weight_decay=1e-4):
     model = Sequential()
 
     n_channels = 32
 
-    model.add(Conv2D(n_channels, 3, padding='same', input_shape=input_shape))
+    model.add(Conv2D(n_channels, 3, padding='same', input_shape=input_shape, kernel_regularizer=regularizers.l2(weight_decay)))
     model.add(BatchNormalization(momentum=0.9))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(2,2)))
@@ -60,48 +53,20 @@ def get_base_model(loss=None, opt=None, embedding_dim=512, metrics=None, input_s
 
     for _ in range(blocks-1):
         n_channels *= 2
-        model.add(Conv2D(n_channels, (3, 3), padding='same'))
+        model.add(Conv2D(n_channels, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay)))
         model.add(BatchNormalization(momentum=0.9))
         model.add(Activation('relu'))
         model.add(MaxPooling2D(pool_size=(2, 2)))
         model.add(Dropout(drop))
 
-    '''
-    model.add(Conv2D(64, (3, 3), padding='same'))
-    model.add(BatchNormalization(momentum=0.9))
-    model.add(Activation('relu'))
-    model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(drop))
-    
-    model.add(Conv2D(128, (3, 3), padding='same'))
-    model.add(BatchNormalization(momentum=0.9))
-    model.add(Activation('relu'))
-    model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(drop))
-
-    model.add(Conv2D(256, (3, 3), padding='same'))
-    model.add(BatchNormalization(momentum=0.9))
-    model.add(Activation('relu'))
-    model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(drop))
-    '''
     model.add(Flatten())
-    model.add(Dense(embedding_dim))
-
-    '''
-    model.add(BatchNormalization(momentum=0.9))
-    model.add(Activation('relu'))
-    model.add(Dropout(0.5))
-    model.add(Dense(embedding_dim))
-    '''
+    model.add(Dense(embedding_dim, kernel_regularizer=regularizers.l2(weight_decay)))
     model.summary()
-    model.compile(loss=loss, optimizer=opt, metrics=metrics)
     return model
 
 
-def get_cifar2_model(loss=None, opt=None, embedding_dim=512, metrics=None, input_shape=(32, 32, 3), drop=0.25, blocks=None):
+def get_cifar2_model(embedding_dim=512, input_shape=(32, 32, 3), weight_decay=1e-4, drop=0.25, blocks=None):
     baseMapNum = 32
-    weight_decay = 1e-4
     inputs = Input(shape=input_shape)
 
     x = Conv2D(baseMapNum, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay),
@@ -133,11 +98,11 @@ def get_cifar2_model(loss=None, opt=None, embedding_dim=512, metrics=None, input
     x = Dropout(0.4)(x)
 
     x = Flatten()(x)
-    x = Dense(embedding_dim)(x)
+    x = Dense(embedding_dim, kernel_regularizer=regularizers.l2(weight_decay))(x)
     x = BatchNormalization()(x)
     x = Activation('relu')(x)
 
-    embedding = Dense(embedding_dim, name= "embedding_output")(x)
+    embedding = Dense(embedding_dim, name= "embedding_output", kernel_regularizer=regularizers.l2(weight_decay))(x)
     classify = Dense(10, activation='softmax', name="class_output")(x)
 
     final = Model(inputs=inputs, outputs=[embedding, classify])
@@ -172,9 +137,8 @@ def get_cifar2_model(loss=None, opt=None, embedding_dim=512, metrics=None, input
     return final
 
 
-def get_cifar_model(loss=None, opt=None, embedding_dim=512, metrics=None, input_shape=(32, 32, 3), drop=0.25, blocks=None):
+def get_cifar_model(embedding_dim=512, input_shape=(32, 32, 3), drop=0.25, blocks=None, weight_decay=1e-4):
     baseMapNum = 32
-    weight_decay = 1e-4
     model = Sequential()
     model.add(Conv2D(baseMapNum, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay),
                      input_shape=input_shape))
@@ -211,15 +175,12 @@ def get_cifar_model(loss=None, opt=None, embedding_dim=512, metrics=None, input_
     model.add(Dropout(drop)) # 0.4
 
     model.add(Flatten())
-    model.add(Dense(embedding_dim))
+    model.add(Dense(embedding_dim, kernel_regularizer=regularizers.l2(weight_decay)))
     model.summary()
-    model.compile(loss=loss, optimizer=opt, metrics=metrics)
-
     return model
 
 
-def get_load_model(model_path, loss=None, opt=None, metrics=None):
+def get_load_model(model_path):
     model = load_model(model_path)
     model.summary()
-    model.compile(loss=loss, optimizer=opt, metrics=metrics)
     return model
