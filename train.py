@@ -1,12 +1,10 @@
 from HTLDataloader import DataLoader
-from Models import get_base_model, get_pretrained_model, get_cifar_model, get_emb_soft_model
 from TripletLoss import TripletLoss
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, TensorBoard, EarlyStopping, LearningRateScheduler
 from keras import optimizers
 
-from utils import get_dirs, get_database
+from utils import get_dirs, get_database, get_parallel_model, get_model
 from visualize_embeddings import visualize_embeddings
-from resnet_model import resnet_v1
 
 import os
 import numpy as np
@@ -26,7 +24,7 @@ def schedule_rule(epoch):
 
 
 def train_model(model, model_weights_path, DATA, epochs=50, ids_per_batch=6, ims_per_id=4,
-                data_gen_args_fit={}, log_dir='./log', im_size=(32, 32), loss=None, opt=None, metrics=None):
+                data_gen_args_fit={}, log_dir='./log', im_size=(32, 32), compile_args={}):
     """Train model with generators."""
     print('Training model...')
 
@@ -52,7 +50,7 @@ def train_model(model, model_weights_path, DATA, epochs=50, ids_per_batch=6, ims
 
     try:
         (x_train, y_train), (x_test, y_test) = DATA
-        model.compile(loss=loss, optimizer=opt, metrics=metrics)
+        model.compile(**compile_args)
         #history = model.fit(x=x_train, y=y_train, batch_size=ims_per_id * ids_per_batch,
         #                    epochs=epochs, verbose=2, callbacks=callbacks, validation_data=(x_test, y_test))
 
@@ -107,35 +105,30 @@ def main():
                                vertical_flip=False)
     data_gen_args_train = {}
 
-    if net == 'base':
-        model = get_base_model(embedding_dim=embedding_size, input_shape=input_size,
-                               drop=dropout, blocks=blocks, weight_decay=weight_decay)
-    elif net == 'cifar':
-        model = get_cifar_model(embedding_dim=embedding_size, input_shape=input_size,
-                                weight_decay=weight_decay, drop=dropout)
-    elif net == 'emb+soft':
-        model = get_emb_soft_model(embedding_dim=embedding_size, input_shape=input_size,
-                                   weight_decay=weight_decay)
-    elif net == 'resnet50':
-        model = get_pretrained_model(layer_limit=173, embedding_dim=embedding_size,
-                                     input_shape=input_size, drop=dropout)
-    elif net == 'resnet20':
-        model = resnet_v1(input_shape=input_size, embedding_dim=embedding_size)
+    model_args = dict(embedding_dim=embedding_size,
+                      input_shape=input_size,
+                      drop=dropout,
+                      blocks=blocks,
+                      weight_decay=weight_decay,
+                      layer_limit=173)
+
+    model = get_model(net, model_args)
 
     if net == 'emb+soft':
         losses = {"embedding_output": tl_object.loss, "class_output": "categorical_crossentropy"}
         loss_weights = {"embedding_output": 1.0, "class_output": 1.0}
-        model.compile(optimizer=opt, loss=losses, loss_weights=loss_weights,
-                      metrics=["accuracy"])
-        raise KeyError
+        compile_args = dict(optimizer=opt,
+                            loss=losses,
+                            loss_weights=loss_weights,
+                            metrics=["accuracy"])
     else:
-        pass
+        compile_args = dict(optimizer=opt, loss=tl_object.sm_loss)
 
     model, history = train_model(model, model_weights_path, DATA=data,
                                  epochs=int(epochs), ids_per_batch=ids_per_batch,
                                  ims_per_id=ims_per_id, data_gen_args_fit=data_gen_args_train,
-                                 log_dir=log_dir, im_size=(input_size[0], input_size[1]), loss=tl_object.sm_loss,
-                                 opt=opt, metrics=None)
+                                 log_dir=log_dir, im_size=(input_size[0], input_size[1]),
+                                 compile_args=compile_args)
 
     model.compile(loss='mse', optimizer='adam')
     model.save(model_weights_path)

@@ -8,7 +8,7 @@ import keras.backend as K
 
 
 def get_pretrained_model(trainable=True, layer_limit=173, embedding_dim=None,
-                         input_shape=(224, 224, 3), drop=0.25):
+                         input_shape=(224, 224, 3), drop=0.25, **kwargs):
     """Get ResNet50 model."""
     main_model = ResNet50(weights='imagenet', include_top=False, input_shape=input_shape)
     main_model.trainable = trainable
@@ -26,7 +26,7 @@ def get_pretrained_model(trainable=True, layer_limit=173, embedding_dim=None,
         return model
 
 
-def get_base_model(embedding_dim=512, input_shape=(32, 32, 3), drop=0.25, blocks=2, weight_decay=1e-4):
+def get_base_model(embedding_dim=512, input_shape=(32, 32, 3), drop=0.25, blocks=2, weight_decay=1e-4, **kwargs):
     model = Sequential()
 
     n_channels = 32
@@ -56,7 +56,7 @@ def get_base_model(embedding_dim=512, input_shape=(32, 32, 3), drop=0.25, blocks
     return model
 
 
-def get_emb_soft_model(embedding_dim=512, input_shape=(32, 32, 3), weight_decay=1e-4):
+def get_emb_soft_model(embedding_dim=512, input_shape=(32, 32, 3), weight_decay=1e-4, **kwargs):
     base_map_num = 32
     inputs = Input(shape=input_shape)
 
@@ -118,7 +118,8 @@ def get_emb_soft_model(embedding_dim=512, input_shape=(32, 32, 3), weight_decay=
     return final
 
 
-def get_cifar_model(embedding_dim=512, input_shape=(32, 32, 3), drop=0.25, weight_decay=1e-4):
+def get_cifar_model(embedding_dim=512, input_shape=(32, 32, 3), drop=0.25, weight_decay=1e-4, **kwargs):
+    print(embedding_dim, input_shape, drop, weight_decay)
     base_map_num = 32
     model = Sequential()
     model.add(Conv2D(base_map_num, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay),

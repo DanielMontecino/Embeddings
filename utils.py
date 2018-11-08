@@ -5,7 +5,12 @@ import logging
 import os
 
 import numpy as np
+import tensorflow as tf
 from keras.datasets import mnist, fashion_mnist, cifar10
+from keras.utils import multi_gpu_model
+
+from Models import get_base_model, get_cifar_model, get_emb_soft_model, get_pretrained_model
+from resnet_model import resnet_v1
 
 
 class Params():
@@ -121,3 +126,26 @@ def get_database(database):
     y_test = y_test.astype(np.int32)
     data = (x_train, y_train), (x_test, y_test)
     return data, input_shape
+
+
+def get_parallel_model(net, model_args, gpus=0):
+    with tf.device('/cpu:0'):
+        model = get_model(net, model_args)
+    return multi_gpu_model(model, gpus=gpus)
+
+
+def get_model(net, model_args):
+    if net == 'base':
+        model = get_base_model(**model_args)
+    elif net == 'cifar':
+        model = get_cifar_model(**model_args)
+    elif net == 'emb+soft':
+        model = get_emb_soft_model(**model_args)
+    elif net == 'resnet50':
+        model = get_pretrained_model(**model_args)
+    elif net == 'resnet20':
+        model = resnet_v1(**model_args)
+    else:
+        print('Invalid database')
+        raise KeyError
+    return model
