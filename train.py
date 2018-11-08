@@ -1,32 +1,24 @@
 from HTLDataloader import DataLoader
-from Models import get_base_model, get_pretrained_model, get_cifar_model, get_cifar2_model, get_load_model
+from Models import get_base_model, get_pretrained_model, get_cifar_model, get_emb_soft_model
 from TripletLoss import TripletLoss
-from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
+from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, TensorBoard, EarlyStopping, LearningRateScheduler
 from keras import optimizers
-from keras.datasets import cifar10
-from keras.datasets import mnist
-from keras.callbacks import TensorBoard, EarlyStopping
+
+from utils import get_dirs, get_database
 from visualize_embeddings import visualize_embeddings
-from keras.callbacks import LearningRateScheduler
 from resnet_model import resnet_v1
 
 import os
 import numpy as np
 
 
-def write_metadata(y_test, file):
-    with open(file, 'w') as f:
-        for y in y_test:
-            line = str(y) + '\n'
-            f.write(line)
-
-
 def schedule_rule(epoch):
-    if epoch<30:
+    # Idea from: https://machinelearningmastery.com/using-learning-rate-schedules-deep-learning-models-python-keras/
+    if epoch<=20:
         lr = 0.001
-    elif epoch<40:
+    elif epoch<=30:
         lr = 0.0001
-    elif epoch<45:
+    elif epoch<=40:
         lr = 0.00001
     else:
         lr = 0.000001
@@ -46,13 +38,13 @@ def train_model(model, model_weights_path, DATA, epochs=50, ids_per_batch=6, ims
     # metadata = log_dir + '/metadata'
     # write_metadata(dl.y_test, metadata)
     tensorboard = TensorBoard(log_dir=log_dir, write_images=True, update_freq='epoch')
-    early_stop = EarlyStopping(monitor='loss', min_delta=0, patience=20, restore_best_weights=True)
+    early_stop = EarlyStopping(monitor='val_loss', min_delta=0, patience=10, restore_best_weights=True)
     schedule = LearningRateScheduler(schedule_rule, verbose=0)
     lr_reducer = ReduceLROnPlateau(factor=np.sqrt(0.1),
                                    cooldown=0,
                                    patience=5,
                                    min_lr=0.5e-6)
-    callbacks = [ModelCheckpoint(model_weights_path), tensorboard, early_stop, schedule]
+    callbacks = [ModelCheckpoint(model_weights_path), tensorboard, early_stop]
 
     steps_per_epoch_fit = dl.get_total_steps()
 
@@ -61,14 +53,15 @@ def train_model(model, model_weights_path, DATA, epochs=50, ids_per_batch=6, ims
     try:
         (x_train, y_train), (x_test, y_test) = DATA
         model.compile(loss=loss, optimizer=opt, metrics=metrics)
-        history = model.fit(x=x_train, y=y_train, batch_size=ims_per_id * ids_per_batch,
-                            epochs=epochs, verbose=2, callbacks=callbacks, validation_data=(x_test, y_test))
+        #history = model.fit(x=x_train, y=y_train, batch_size=ims_per_id * ids_per_batch,
+        #                    epochs=epochs, verbose=2, callbacks=callbacks, validation_data=(x_test, y_test))
 
-        # model.fit_generator(generator=fit_generator,
-        #                    steps_per_epoch=steps_per_epoch_fit,
-        #                    epochs=epochs,
-        #                    verbose=1,
-        #                    callbacks=callbacks)
+        history = model.fit_generator(generator=fit_generator,
+                                       steps_per_epoch=steps_per_epoch_fit,
+                                       epochs=epochs,
+                                       verbose=2,
+                                       callbacks=callbacks, validation_data=(x_test, y_test))
+
         return model, history
     except KeyboardInterrupt:
         pass
@@ -76,78 +69,72 @@ def train_model(model, model_weights_path, DATA, epochs=50, ids_per_batch=6, ims
 
 
 def main():
-    database = 'cifar10'
+    # General parameters
+    database = ['cifar10', 'mnist', 'fashion_mnist'][0]
     epochs = 50
     learn_rate = 0.001
-    decay = (learn_rate / epochs) * 0
-    ims_per_id = 16
+    decay = (learn_rate / epochs) * 1
+    ims_per_id = 4*4
     ids_per_batch = 8
-    trainable = True
     margin = 0.2
     embedding_size = 64
-    dropout = 0.25
     squared = False
+
+    # built model's parameters
+    dropout = 0.3
     blocks = 3
-    weight_decay = 1e-4 * 1
-    use_resnet20 = True
+    weight_decay = 1e-4 * 0
 
-    exp_dir = 'exp/' + database + '/run_0'
-    model_name = '/model_weights.h5'
-
-    while os.path.exists(exp_dir):
-        sl = exp_dir.split('_')
-        actual_run = str(int(sl[-1]) + 1)
-        sl[-1] = actual_run
-        exp_dir = '_'.join(sl)
-
-    exp_dir += '/'
-    log_dir = exp_dir + '/log/'
-
-    model_weights_path = exp_dir + model_name
-
+    # net model
+    net = ['base', 'cifar', 'emb+soft', 'resnet50', 'resnet20'][1]
+    exp_dir, log_dir, model_weights_path, model_name = get_dirs(database)
     tl_object = TripletLoss(ims_per_id=ims_per_id, ids_per_batch=ids_per_batch,
                             margin=margin, squared=squared)
     opt = optimizers.Adam(lr=learn_rate, decay=decay)
+    data, input_size = get_database(database)
 
-    if database == 'mnist':
-        input_size = (28, 28, 1)
-        (x_train, y_train), (x_test, y_test) = mnist.load_data()
-        x_train = np.expand_dims(x_train, axis=-1)
-        x_test = np.expand_dims(x_test, axis=-1)
-        data = (x_train, y_train), (x_test, y_test)
-
-    elif database == 'cifar10':
-        input_size = (32, 32, 3)
-        (x_train, y_train), (x_test, y_test) = cifar10.load_data()
-        x_train = x_train.astype('float32') / 255.
-        x_test = x_test.astype('float32') / 255.
-        # z-score
-        '''
-        mean = np.mean(x_train, axis=(0, 1, 2, 3))
-        std = np.std(x_train, axis=(0, 1, 2, 3))
-        x_train = (x_train - mean) / (std + 1e-7)
-        x_test = (x_test - mean) / (std + 1e-7)
-        '''
-        mean = np.mean(x_train, axis=0)
-        x_train -= mean
-        x_test -= mean
-        data = (x_train, y_train), (x_test, y_test)
-    else:
-        raise Exception
-
-    # data_gen_args_train = dict(rescale=1 / 255.)
+    data_gen_args_train = dict(rescale=1 / 255.)
+    data_gen_args_train = dict(featurewise_center=False,  # set input mean to 0 over the dataset
+                               samplewise_center=False,  # set each sample mean to 0
+                               featurewise_std_normalization=False,  # divide inputs by std of the dataset
+                               samplewise_std_normalization=False,  # divide each input by its std
+                               zca_whitening=False,  # apply ZCA whitening
+                               rotation_range=10,  # randomly rotate images in the range (degrees, 0 to 180)
+                               zoom_range=0.1,  # Randomly zoom image
+                               width_shift_range=0.1,  # randomly shift images horizontally (fraction of total width)
+                               height_shift_range=0.1,  # randomly shift images vertically (fraction of total height)
+                               horizontal_flip=False,  # randomly flip images
+                               vertical_flip=False)
     data_gen_args_train = {}
 
-    if use_resnet20:
+    if net == 'base':
+        model = get_base_model(embedding_dim=embedding_size, input_shape=input_size,
+                               drop=dropout, blocks=blocks, weight_decay=weight_decay)
+    elif net == 'cifar':
+        model = get_cifar_model(embedding_dim=embedding_size, input_shape=input_size,
+                                weight_decay=weight_decay, drop=dropout)
+    elif net == 'emb+soft':
+        model = get_emb_soft_model(embedding_dim=embedding_size, input_shape=input_size,
+                                   weight_decay=weight_decay)
+    elif net == 'resnet50':
+        model = get_pretrained_model(layer_limit=173, embedding_dim=embedding_size,
+                                     input_shape=input_size, drop=dropout)
+    elif net == 'resnet20':
         model = resnet_v1(input_shape=input_size, embedding_dim=embedding_size)
+
+    if net == 'emb+soft':
+        losses = {"embedding_output": tl_object.loss, "class_output": "categorical_crossentropy"}
+        loss_weights = {"embedding_output": 1.0, "class_output": 1.0}
+        model.compile(optimizer=opt, loss=losses, loss_weights=loss_weights,
+                      metrics=["accuracy"])
+        raise KeyError
     else:
-        model = get_base_model(embedding_dim=embedding_size,
-                               input_shape=input_size, drop=dropout, blocks=blocks, weight_decay=weight_decay)
+        pass
 
     model, history = train_model(model, model_weights_path, DATA=data,
                                  epochs=int(epochs), ids_per_batch=ids_per_batch,
                                  ims_per_id=ims_per_id, data_gen_args_fit=data_gen_args_train,
-                                 log_dir=log_dir, im_size=(input_size[0], input_size[1]), loss=tl_object.loss,
+                                 log_dir=log_dir, im_size=(input_size[0], input_size[1]), loss=tl_object.sm_loss,
                                  opt=opt, metrics=None)
 
     model.compile(loss='mse', optimizer='adam')

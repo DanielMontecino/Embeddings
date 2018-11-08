@@ -2,42 +2,28 @@ from keras.applications.resnet50 import ResNet50
 from keras import Input
 from keras import regularizers
 from keras.models import Sequential, Model, load_model
-from keras.layers import Dense, Dropout, Flatten, BatchNormalization, InputLayer
-from keras import backend as K
+from keras.layers import Dense, Dropout, Flatten, BatchNormalization, Lambda, SpatialDropout2D
 from keras.layers import Conv2D, Activation, MaxPooling2D
-
-def some_loss(y_true, y_pred):
-    return K.max(y_pred, axis=None, keepdims=False)
-    print(y_true.shape, y_pred.shape)
-    maximum_feat = K.max(y_pred, axis=1, keepdims=False)
-    return K.mean(K.square(maximum_feat - y_true), axis=-1)
+import keras.backend as K
 
 
-def get_pretrained_model(trainable=True, layer_limit = 173, embedding_dim = None,
-                         input_shape=(224, 224, 3), drop=0.25, blocks=None):
+def get_pretrained_model(trainable=True, layer_limit=173, embedding_dim=None,
+                         input_shape=(224, 224, 3), drop=0.25):
     """Get ResNet50 model."""
-    main_model = ResNet50(weights='imagenet', include_top=False, input_tensor=Input(shape=input_shape))
-
+    main_model = ResNet50(weights='imagenet', include_top=False, input_shape=input_shape)
     main_model.trainable = trainable
     for k, layer in enumerate(main_model.layers):
         if k < layer_limit:
             layer.trainable = False
         else:
             layer.trainable = trainable
-
-    top_model = Sequential()
-
     if embedding_dim is not None:
-        top_model.add(Flatten(input_shape=main_model.output_shape[1:]))
-        top_model.add(Dropout(drop))
-        top_model.add(Dense(embedding_dim, name='embedding_layer'))
-    else:
-        top_model.add(Flatten(input_shape=main_model.output_shape[1:], name='embedding_layer'))
-    model = Model(inputs=main_model.input,
-                  outputs=top_model(main_model.output))
-
-    model.summary()
-    return model
+        model_ = Flatten()(main_model.output)
+        model_ = Dropout(drop)(model_)
+        model_ = Dense(embedding_dim, name='embedding_layer')(model_)
+        model = Model(inputs=main_model.input, outputs=model_)
+        model.summary()
+        return model
 
 
 def get_base_model(embedding_dim=512, input_shape=(32, 32, 3), drop=0.25, blocks=2, weight_decay=1e-4):
@@ -45,11 +31,13 @@ def get_base_model(embedding_dim=512, input_shape=(32, 32, 3), drop=0.25, blocks
 
     n_channels = 32
 
-    model.add(Conv2D(n_channels, 3, padding='same', input_shape=input_shape, kernel_regularizer=regularizers.l2(weight_decay)))
+    model.add(Conv2D(n_channels, 3, padding='same', input_shape=input_shape,
+                     kernel_regularizer=regularizers.l2(weight_decay)))
     model.add(BatchNormalization(momentum=0.9))
     model.add(Activation('relu'))
-    model.add(MaxPooling2D(pool_size=(2,2)))
-    model.add(Dropout(drop))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(SpatialDropout2D(rate=drop))
+    #  model.add(Dropout(drop))
 
     for _ in range(blocks-1):
         n_channels *= 2
@@ -57,71 +45,64 @@ def get_base_model(embedding_dim=512, input_shape=(32, 32, 3), drop=0.25, blocks
         model.add(BatchNormalization(momentum=0.9))
         model.add(Activation('relu'))
         model.add(MaxPooling2D(pool_size=(2, 2)))
-        model.add(Dropout(drop))
+        model.add(SpatialDropout2D(rate=drop))
+        #  model.add(Dropout(drop))
 
     model.add(Flatten())
     model.add(Dense(embedding_dim, kernel_regularizer=regularizers.l2(weight_decay)))
+    import tensorflow as tf
+    model.add(Lambda(lambda x: K.l2_normalize(x,axis=-1)))
     model.summary()
     return model
 
 
-def get_cifar2_model(embedding_dim=512, input_shape=(32, 32, 3), weight_decay=1e-4, drop=0.25, blocks=None):
-    baseMapNum = 32
+def get_emb_soft_model(embedding_dim=512, input_shape=(32, 32, 3), weight_decay=1e-4):
+    base_map_num = 32
     inputs = Input(shape=input_shape)
 
-    x = Conv2D(baseMapNum, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay),
+    x = Conv2D(base_map_num, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay),
                input_shape=input_shape)(inputs)
     x = Activation('relu')(x)
     x = BatchNormalization()(x)
-    x = Conv2D(baseMapNum, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay))(x)
+    x = Conv2D(base_map_num, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay))(x)
     x = Activation('relu')(x)
     x = BatchNormalization()(x)
-    x = MaxPooling2D(pool_size=(2,2))(x)
+    x = MaxPooling2D(pool_size=(2, 2))(x)
     x = Dropout(0.2)(x)
 
-    x = Conv2D(2 * baseMapNum, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay))(x)
+    x = Conv2D(2 * base_map_num, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay))(x)
     x = Activation('relu')(x)
     x = BatchNormalization()(x)
-    x = Conv2D(2 * baseMapNum, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay))(x)
+    x = Conv2D(2 * base_map_num, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay))(x)
     x = Activation('relu')(x)
     x = BatchNormalization()(x)
-    x = MaxPooling2D(pool_size=(2,2))(x)
+    x = MaxPooling2D(pool_size=(2, 2))(x)
     x = Dropout(0.3)(x)
 
-    x = Conv2D(4 * baseMapNum, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay))(x)
+    x = Conv2D(4 * base_map_num, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay))(x)
     x = Activation('relu')(x)
     x = BatchNormalization()(x)
-    x = Conv2D(4 * baseMapNum, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay))(x)
+    x = Conv2D(4 * base_map_num, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay))(x)
     x = Activation('relu')(x)
     x = BatchNormalization()(x)
-    x = MaxPooling2D(pool_size=(2,2))(x)
+    x = MaxPooling2D(pool_size=(2, 2))(x)
     x = Dropout(0.4)(x)
 
     x = Flatten()(x)
-    x = Dense(embedding_dim, kernel_regularizer=regularizers.l2(weight_decay))(x)
-    x = BatchNormalization()(x)
+    embedding = Dense(embedding_dim, name="embedding_output", kernel_regularizer=regularizers.l2(weight_decay))(x)
+    x = BatchNormalization()(embedding)
     x = Activation('relu')(x)
-
-    embedding = Dense(embedding_dim, name= "embedding_output", kernel_regularizer=regularizers.l2(weight_decay))(x)
     classify = Dense(10, activation='softmax', name="class_output")(x)
-
     final = Model(inputs=inputs, outputs=[embedding, classify])
-
-    losses = {
-        "embedding_output": loss,
-        "class_output": "categorical_crossentropy",
-    }
-
-    lossWeights = {"embedding_output": 1.0, "class_output": 1.0}
-
-    # initialize the optimizer and compile the model
-    final.compile(optimizer=opt, loss=losses, loss_weights=lossWeights,
-                  metrics=["accuracy"])
-
-    # model.compile(loss=loss, optimizer=opt, metrics=metrics)
     final.summary()
-
     '''
+    HOW TO COMPILE:
+        losses = {"embedding_output": loss, "class_output": "categorical_crossentropy"}
+        lossWeights = {"embedding_output": 1.0, "class_output": 1.0}
+        final.compile(optimizer=opt, loss=losses, loss_weights=lossWeights,
+                  metrics=["accuracy"])
+    
+    
     HOW TO TRAIN:
         from sklearn.preprocessing import OneHotEncoder
         enc = OneHotEncoder()
@@ -137,42 +118,42 @@ def get_cifar2_model(embedding_dim=512, input_shape=(32, 32, 3), weight_decay=1e
     return final
 
 
-def get_cifar_model(embedding_dim=512, input_shape=(32, 32, 3), drop=0.25, blocks=None, weight_decay=1e-4):
-    baseMapNum = 32
+def get_cifar_model(embedding_dim=512, input_shape=(32, 32, 3), drop=0.25, weight_decay=1e-4):
+    base_map_num = 32
     model = Sequential()
-    model.add(Conv2D(baseMapNum, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay),
+    model.add(Conv2D(base_map_num, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay),
                      input_shape=input_shape))
     model.add(Activation('relu'))
     model.add(BatchNormalization())
 
-    model.add(Conv2D(baseMapNum, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay)))
+    model.add(Conv2D(base_map_num, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay)))
     model.add(Activation('relu'))
     model.add(BatchNormalization())
 
     model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(drop)) # 0.2
+    model.add(Dropout(drop))  # 0.2
 
-    model.add(Conv2D(2 * baseMapNum, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay)))
+    model.add(Conv2D(2 * base_map_num, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay)))
     model.add(Activation('relu'))
     model.add(BatchNormalization())
 
-    model.add(Conv2D(2 * baseMapNum, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay)))
+    model.add(Conv2D(2 * base_map_num, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay)))
     model.add(Activation('relu'))
     model.add(BatchNormalization())
 
     model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(drop)) # 0.3
+    model.add(Dropout(drop))  # 0.3
 
-    model.add(Conv2D(4 * baseMapNum, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay)))
+    model.add(Conv2D(4 * base_map_num, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay)))
     model.add(Activation('relu'))
     model.add(BatchNormalization())
 
-    model.add(Conv2D(4 * baseMapNum, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay)))
+    model.add(Conv2D(4 * base_map_num, (3, 3), padding='same', kernel_regularizer=regularizers.l2(weight_decay)))
     model.add(Activation('relu'))
     model.add(BatchNormalization())
     
     model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(drop)) # 0.4
+    model.add(Dropout(drop))  # 0.4
 
     model.add(Flatten())
     model.add(Dense(embedding_dim, kernel_regularizer=regularizers.l2(weight_decay)))

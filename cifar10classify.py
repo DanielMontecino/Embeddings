@@ -8,6 +8,8 @@ from keras.datasets import cifar10
 from keras import regularizers, optimizers
 import numpy as np
 
+# extracted from:
+# https://www.kaggle.com/c/cifar-10/discussion/40237#412724
 
 (x_train, y_train), (x_test, y_test) = cifar10.load_data()
 x_train = x_train.astype('float32')
@@ -23,31 +25,31 @@ num_classes = 10
 y_train = np_utils.to_categorical(y_train,num_classes)
 y_test = np_utils.to_categorical(y_test,num_classes)
 
-baseMapNum = 32
+base_map_num = 32
 weight_decay = 1e-4
 model = Sequential()
-model.add(Conv2D(baseMapNum, (3,3), padding='same', kernel_regularizer=regularizers.l2(weight_decay), input_shape=x_train.shape[1:]))
+model.add(Conv2D(base_map_num, (3,3), padding='same', kernel_regularizer=regularizers.l2(weight_decay), input_shape=x_train.shape[1:]))
 model.add(Activation('relu'))
 model.add(BatchNormalization())
-model.add(Conv2D(baseMapNum, (3,3), padding='same', kernel_regularizer=regularizers.l2(weight_decay)))
+model.add(Conv2D(base_map_num, (3,3), padding='same', kernel_regularizer=regularizers.l2(weight_decay)))
 model.add(Activation('relu'))
 model.add(BatchNormalization())
 model.add(MaxPooling2D(pool_size=(2,2)))
 model.add(Dropout(0.2))
 
-model.add(Conv2D(2*baseMapNum, (3,3), padding='same', kernel_regularizer=regularizers.l2(weight_decay)))
+model.add(Conv2D(2*base_map_num, (3,3), padding='same', kernel_regularizer=regularizers.l2(weight_decay)))
 model.add(Activation('relu'))
 model.add(BatchNormalization())
-model.add(Conv2D(2*baseMapNum, (3,3), padding='same', kernel_regularizer=regularizers.l2(weight_decay)))
+model.add(Conv2D(2*base_map_num, (3,3), padding='same', kernel_regularizer=regularizers.l2(weight_decay)))
 model.add(Activation('relu'))
 model.add(BatchNormalization())
 model.add(MaxPooling2D(pool_size=(2,2)))
 model.add(Dropout(0.3))
 
-model.add(Conv2D(4*baseMapNum, (3,3), padding='same', kernel_regularizer=regularizers.l2(weight_decay)))
+model.add(Conv2D(4*base_map_num, (3,3), padding='same', kernel_regularizer=regularizers.l2(weight_decay)))
 model.add(Activation('relu'))
 model.add(BatchNormalization())
-model.add(Conv2D(4*baseMapNum, (3,3), padding='same', kernel_regularizer=regularizers.l2(weight_decay)))
+model.add(Conv2D(4*base_map_num, (3,3), padding='same', kernel_regularizer=regularizers.l2(weight_decay)))
 model.add(Activation('relu'))
 model.add(BatchNormalization())
 model.add(MaxPooling2D(pool_size=(2,2)))

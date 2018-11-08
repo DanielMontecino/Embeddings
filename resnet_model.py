@@ -6,6 +6,10 @@ from keras.regularizers import l2
 
 from keras.models import Model
 
+# Extracted from:
+
+#   https://github.com/keras-team/keras/blob/master/examples/cifar10_resnet.py
+
 
 # Model parameter
 # ----------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import math_ops
 from keras import backend as K
-
+from tf_losses import triplet_semihard_loss
 
 def pairwise_distance(feature, squared=False):
     """Computes the pairwise distance matrix with numerical stability.
@@ -101,6 +101,12 @@ class TripletLoss(object):
         dist_ap, dist_an = hard_example_mining(dist_mat, y_true)
         loss = K.mean(K.maximum(0., dist_ap - dist_an + self.margin), axis=0)
         return loss
+
+    def sm_loss(self, y_true, y_pred):
+        from tensorflow.python.ops import array_ops
+        lshape = array_ops.shape(y_pred)
+        y_true = array_ops.reshape(y_true, (lshape[0],))
+        return triplet_semihard_loss(y_true, y_pred, self.margin)
 
     @staticmethod
     def pairwise_distance2(feature, squared=True):

@@ -1,18 +1,13 @@
 """Train the model"""
 
-import argparse
 import os
 import pathlib
 import shutil
-
-import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.tensorboard.plugins import projector
-from keras.datasets import cifar10
-from keras.datasets import mnist
 from keras.models import load_model
 import keras.backend as K
-
+from utils import get_database
 
 if __name__ == '__main__':
     pass
@@ -24,16 +19,8 @@ def visualize_embeddings(database='mnist', model_dir='exp/mnist/run_13/', model_
 
     tf.logging.set_verbosity(tf.logging.INFO)
 
-    if database=='mnist':
-        _, (x_test, y_test) = mnist.load_data()
-        x_test = np.expand_dims(x_test, axis=-1)
-
-    elif database=='cifar10':
-        _, (x_test, y_test) = cifar10.load_data()
-
-    else:
-        raise AssertionError
-
+    data, input_size = get_database(database)
+    _, (x_test, y_test) = data
     # Load the parameters from json file
     if model is None:
         tf.reset_default_graph()
