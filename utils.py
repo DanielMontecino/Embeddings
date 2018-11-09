@@ -109,6 +109,8 @@ def get_database(database):
         (x_train, y_train), (x_test, y_test) = fashion_mnist.load_data()
     elif database == 'cifar10':
         (x_train, y_train), (x_test, y_test) = cifar10.load_data()
+    elif database == 'skillup':
+        return None, (224, 224, 3)
 
     else:
         print("Invalid database name")

@@ -26,11 +26,9 @@ def get_pretrained_model(trainable=True, layer_limit=173, embedding_dim=128,
     return model
 
 
-def get_base_model(embedding_dim=512, input_shape=(32, 32, 3), drop=0.25, blocks=2, weight_decay=1e-4, **kwargs):
+def get_base_model(embedding_dim=512, input_shape=(32, 32, 3), drop=0.25, blocks=2, n_channels=32,
+                   weight_decay=1e-4, **kwargs):
     model = Sequential()
-
-    n_channels = 32
-
     model.add(Conv2D(n_channels, 3, padding='same', input_shape=input_shape,
                      kernel_regularizer=regularizers.l2(weight_decay)))
     model.add(BatchNormalization(momentum=0.9))
@@ -49,7 +47,7 @@ def get_base_model(embedding_dim=512, input_shape=(32, 32, 3), drop=0.25, blocks
         #  model.add(Dropout(drop))
 
     model.add(Flatten())
-    model.add(Dense(embedding_dim, kernel_regularizer=regularizers.l2(weight_decay)))
+    #model.add(Dense(embedding_dim, kernel_regularizer=regularizers.l2(weight_decay)))
     model.add(Lambda(lambda x: K.l2_normalize(x,axis=-1)))
     model.summary()
     return model
@@ -160,7 +158,7 @@ def get_cifar_model(embedding_dim=512, input_shape=(32, 32, 3), drop=0.25, weigh
     model.add(Dropout(drop))  # 0.4
 
     model.add(Flatten())
-    model.add(Dense(embedding_dim, kernel_regularizer=regularizers.l2(weight_decay)))
+    #model.add(Dense(embedding_dim, kernel_regularizer=regularizers.l2(weight_decay)))
     model.add(Lambda(lambda x: K.l2_normalize(x, axis=-1)))
     model.summary()
     return model

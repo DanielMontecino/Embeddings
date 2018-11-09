@@ -81,7 +81,7 @@ def resnet_layer(inputs,
     return x
 
 
-def resnet_v1(input_shape, depth=20, embedding_dim=64):
+def resnet_v1(input_shape, depth=20, embedding_dim=64, **kwrds):
     """ResNet Version 1 Model builder [a]
     Stacks of 2 x (3 x 3) Conv2D-BN-ReLU
     Last ReLU is after the shortcut connection.

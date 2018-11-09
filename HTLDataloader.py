@@ -28,7 +28,7 @@ class DataLoader(object):
     '''
 
     def __init__(self, DATA, ims_per_id=4, ids_per_batch=3,
-                 target_image_size=(32, 32), data_gen_args={}, num_clases=10):
+                 target_image_size=(32, 32), data_gen_args={}, num_clases=10, **kwrds):
         self.ims_per_id = ims_per_id
         self.ids_per_batch = ids_per_batch
         self.batch_size = ims_per_id * ids_per_batch
@@ -47,11 +47,11 @@ class DataLoader(object):
         self.test_dict = self.set_dict(self.y_test)
 
     def preprocess(self):
+        self.y_train = self.y_train.reshape(-1)
+        self.y_test = self.y_test.reshape(-1)
         return
         self.x_train = self.x_train.astype('float32') / 255.
         self.x_test = self.x_test.astype('float32') / 255.
-        self.y_train = self.y_train.reshape(-1)
-        self.y_test = self.y_test.reshape(-1)
 
     def set_labels_list(self):
         '''
@@ -151,8 +151,6 @@ class DataLoader(object):
             yield x_batch, np.array(y_batch).astype(np.int32)
 
 
-
-
 class ProductDataLoader(object):
     ''' Object to train siamese Network with TripletLoss.
     It yields a generator that deliver the batches of dataset,
@@ -175,21 +173,30 @@ class ProductDataLoader(object):
         ids_to_train:   A list with the classes that haven't be used in the actual epoch.
     '''
 
-    def __init__(self, images_txt=None, ims_per_id=4, ids_per_batch=32, shuffle=True,
-                 seed=2017, target_image_size=(224, 224), data_gen_args={}, preprocess_unit=False):
-        self.txt = images_txt
+    def __init__(self, path, ims_per_id=4, ids_per_batch=32,
+                 target_image_size=(224, 224), data_gen_args={}, preprocess_unit=True, **kwrds):
+        self.train_txt = path + '/bounding_box_train.txt'
+        self.test_txt = path + '/query.txt'
         self.ims_per_id = ims_per_id
         self.ids_per_batch = ids_per_batch
-        self.batch_size = ims_per_id * ids_per_batch
-        self.im_dict = {}
-        self.set_im_dict()
-        self.ids_to_train = []
-        self.reset_ids_to_train()
         self.im_size = target_image_size
-        self.shuffle = shuffle
-        self.seed = seed
         self.data_gen_args = data_gen_args
         self.preprocess_unit = preprocess_unit
+
+        self.train_dict = self.set_dict(self.train_txt)
+        self.test_dict = self.set_dict(self.test_txt)
+        self.train_labels_list = self.set_labels_list(self.train_dict)
+        self.test_labels_list = self.set_labels_list(self.test_dict)
+        print(len(self.train_labels_list), "number of train classes ")
+        print(len(self.test_labels_list), "number of test classes ")
+        self.ids_per_train_batch = self.ids_per_batch
+        self.ids_per_test_batch = self.ids_per_batch
+        if len(self.train_labels_list)<self.ids_per_batch:
+            self.ids_per_train_batch = len(self.train_labels_list)
+            print("train ids per batch changed to -->", self.ids_per_train_batch)
+        if len(self.test_labels_list)<self.ids_per_batch:
+            self.ids_per_test_batch = len(self.test_labels_list)
+            print("train ids per batch changed to -->", self.ids_per_test_batch)
 
     def preprocess(self, img_path):
         img = image.load_img(img_path, target_size=self.im_size)
@@ -199,66 +206,95 @@ class ProductDataLoader(object):
             x = preprocess_input(x)
         return x
 
-    def get_total_steps(self):
-        return len(self.all_ids_list) / self.ids_per_batch
+    @staticmethod
+    def set_labels_list(_dict):
+        '''
+        Set the list with the labels, assuming that are the same in test and train
+        '''
+        labels_list = []
+        for key, val in _dict.items():
+            labels_list += [key]
 
-    def set_im_dict(self):
+        return labels_list
+
+    @staticmethod
+    def set_dict(txt_file):
         '''Generate a dictionary with the data. The keys of this Dict are the classes,
         and his value is a list with the path of the images of the same class.
         '''
-        self.im_dict = {}
-        with open(self.txt, 'r') as f:
+        im_dict = {}
+        with open(txt_file, 'r') as f:
             for line in f:
                 im_path, im_class = line.split(' ')[:2]
                 im_class = int(im_class)
-                if im_class not in self.im_dict.keys():
-                    self.im_dict[im_class] = [im_path]
+                if im_class not in im_dict.keys():
+                    im_dict[im_class] = [im_path]
                 else:
-                    self.im_dict[im_class].append(im_path)
-        self.all_ids_list = list(self.im_dict.keys())
-        return self.all_ids_list
+                    im_dict[im_class].append(im_path)
+        return im_dict
 
-    def shuffle_ids(self):
-        shuffle(self.all_ids_list)
+    def get_train_steps(self):
+        n_images = 0
+        for im_class, class_list in self.train_dict.items():
+            n_images += len(class_list)
+        print(n_images, "train images")
+        return float(n_images) / self.ids_per_train_batch
 
+    def get_test_steps(self):
+        n_images = 0
+        for im_class, class_list in self.test_dict.items():
+            n_images += len(class_list)
+        print(n_images, "test images")
+        return float(n_images) / self.ids_per_test_batch
+
+    @staticmethod
     def copy_dict(original_dict):
-        ''' Copy a dict to another, because the only assigment =,
+        ''' Copy a dict to another, because the only assignment =,
         implies that changes in one dict affect the other.
 
         Input:
             original_dict:  The Dictionary to copy.
         Output:
-            new_dict:       The new dictionary, identicall to the
-                            original'''
+            new_dict:       The new dictionary, identical to the
+                            original
+        '''
         new_dict = {}
         for key, items in original_dict.items():
             new_dict[key] = items.copy()
         return new_dict
 
-    def reset_ids_to_train(self):
-        ''' Reset the classes to be trained when the apoch has finished.'''
-        self.ids_to_train = self.all_ids_list.copy()
-        shuffle(self.ids_to_train)
+    def get_labels_list(self, _labels_list):
+        shuffle(_labels_list)
+        return _labels_list.copy()
 
-    def get_generator(self):
-        self.reset_ids_to_train()
+    def get_generator(self, _dict, _labels_list, ids_per_batch):
+        ids_to_train = self.get_labels_list(_labels_list)
+        dict_to_train = self.copy_dict(_dict)
+        batch_size = ids_per_batch * self.ims_per_id
         while True:
             x_batch = []
             y_batch = []
-            if len(self.ids_to_train) < self.ids_per_batch:
-                self.reset_ids_to_train()
-            k = 0
-            for _ in range(self.ids_per_batch):
-                id_ = self.ids_to_train.pop()
-                images_list = self.im_dict[id_][:self.ims_per_id]
-                shuffle(self.im_dict[id_])
-                for im_path in images_list:
+            if len(ids_to_train) <= ids_per_batch:
+                ids_to_train = self.get_labels_list(_labels_list)
+            for _ in range(ids_per_batch):
+                id_ = ids_to_train.pop()
+                if len(dict_to_train[id_]) < self.ims_per_id:
+                    dict_to_train[id_] = _dict[id_].copy()
+                    shuffle(dict_to_train[id_])
+                for im in range(self.ims_per_id):
+                    im_path = dict_to_train[id_].pop()
                     x_batch.append(self.preprocess(im_path))
                     y_batch.append(id_)
-                    k += 1
 
             x_batch = np.concatenate(x_batch)
             datagen = ImageDataGenerator(**self.data_gen_args)
             datagen.fit(x_batch)
-            x_batch = next(datagen.flow(x_batch, shuffle=False))
+            x_batch = next(datagen.flow(x_batch, shuffle=False,
+                                        batch_size=batch_size))
             yield x_batch, np.array(y_batch).astype(np.int32)
+
+    def train_generator(self):
+        return self.get_generator(self.train_dict, self.train_labels_list, self.ids_per_train_batch)
+
+    def test_generator(self):
+        return self.get_generator(self.test_dict, self.test_labels_list, self.ids_per_test_batch)

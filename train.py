@@ -1,4 +1,4 @@
-from HTLDataloader import DataLoader
+from HTLDataloader import DataLoader, ProductDataLoader
 from TripletLoss import TripletLoss
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, TensorBoard, EarlyStopping, LearningRateScheduler
 from keras import optimizers
@@ -25,17 +25,11 @@ def schedule_rule(epoch):
 
 
 def train_model(model, model_weights_path, DATA, epochs=50, ids_per_batch=6, ims_per_id=4,
-                data_gen_args_fit={}, log_dir='./log', im_size=(32, 32), compile_args={}):
+                dataloader=None, log_dir='./log', im_size=(32, 32), compile_args={}):
     """Train model with generators."""
     print('Training model...')
-
-    dl = DataLoader(DATA=DATA, ims_per_id=ims_per_id,
-                    ids_per_batch=ids_per_batch,
-                    data_gen_args=data_gen_args_fit, target_image_size=im_size)
-
     os.makedirs(log_dir, exist_ok=True)
-    # metadata = log_dir + '/metadata'
-    # write_metadata(dl.y_test, metadata)
+    # write_metadata(dl.y_test, log_dir + '/metadata')
     tensorboard = TensorBoard(log_dir=log_dir, write_images=True, update_freq='epoch')
     early_stop = EarlyStopping(monitor='val_loss', min_delta=0, patience=10, restore_best_weights=True)
     schedule = LearningRateScheduler(schedule_rule, verbose=0)
@@ -45,14 +39,10 @@ def train_model(model, model_weights_path, DATA, epochs=50, ids_per_batch=6, ims
                                    min_lr=0.5e-6)
     callbacks = [ModelCheckpoint(model_weights_path), tensorboard, early_stop]
 
-    steps_per_epoch_fit = dl.get_train_steps()
-
-    fit_generator = dl.train_generator()
-
     try:
-        (x_train, y_train), (x_test, y_test) = DATA
         model.compile(**compile_args)
         if 'loss_weights' in compile_args.keys():
+            (x_train, y_train), (x_test, y_test) = DATA
             from sklearn.preprocessing import OneHotEncoder
             enc = OneHotEncoder(categories='auto')
             y_train_OH = enc.fit_transform(y_train)
@@ -66,15 +56,17 @@ def train_model(model, model_weights_path, DATA, epochs=50, ids_per_batch=6, ims
                                 verbose=2, batch_size=ims_per_id * ids_per_batch, callbacks=callbacks)
 
         else:
+            #(x_train, y_train), (x_test, y_test) = DATA
             #history = model.fit(x=x_train, y=y_train, batch_size=ims_per_id * ids_per_batch,
             #                    epochs=epochs, verbose=2, callbacks=callbacks, validation_data=(x_test, y_test))
 
-            history = model.fit_generator(generator=fit_generator,
-                                          steps_per_epoch=steps_per_epoch_fit,
+            history = model.fit_generator(generator=dataloader.train_generator(),
+                                          steps_per_epoch=dataloader.get_train_steps(),
                                           epochs=epochs,
                                           verbose=2,
-                                          callbacks=callbacks, validation_data=dl.test_generator(),
-                                          validation_steps=dl.get_test_steps())
+                                          callbacks=callbacks,
+                                          validation_data=dataloader.test_generator(),
+                                          validation_steps=dataloader.get_test_steps())
 
         return model, history
     except KeyboardInterrupt:
@@ -84,30 +76,33 @@ def train_model(model, model_weights_path, DATA, epochs=50, ids_per_batch=6, ims
 
 def main():
     # General parameters
-    database = ['cifar10', 'mnist', 'fashion_mnist'][0]
+    database = ['cifar10', 'mnist', 'fashion_mnist', 'skillup'][-1]
+    net = ['base', 'cifar', 'emb+soft', 'resnet50', 'resnet20'][0]
     epochs = 100
     learn_rate = 0.00001
     decay = (learn_rate / epochs) * 1
-    ims_per_id = 4*4
-    ids_per_batch = 8
+    ims_per_id = 4
+    ids_per_batch = 12
     margin = 0.3
     embedding_size = 64
     squared = False
 
     # built model's parameters
     dropout = 0.25
-    blocks = 3
+    blocks = 4
+    n_channels = 32
     weight_decay = 1e-4 * 0
 
-    # net model
-    net = ['base', 'cifar', 'emb+soft', 'resnet50', 'resnet20'][1]
+    # dataloader parameters
+    path = '/home/daniel/proyectos/product_detection/web_market_preproces/duke_from_images'
+
     exp_dir, log_dir, model_weights_path, model_name = get_dirs(database)
     tl_object = TripletLoss(ims_per_id=ims_per_id, ids_per_batch=ids_per_batch,
                             margin=margin, squared=squared)
     opt = optimizers.Adam(lr=learn_rate, decay=decay)
     data, input_size = get_database(database)
+    im_size = input_size[:2]
 
-    data_gen_args_train = dict(rescale=1 / 255.)
     data_gen_args_train = dict(featurewise_center=False,  # set input mean to 0 over the dataset
                                samplewise_center=False,  # set each sample mean to 0
                                featurewise_std_normalization=False,  # divide inputs by std of the dataset
@@ -125,10 +120,24 @@ def main():
                       input_shape=input_size,
                       drop=dropout,
                       blocks=blocks,
+                      n_channels=n_channels,
                       weight_decay=weight_decay,
                       layer_limit=173)
 
+    data_loader_args = dict(path=path,
+                            ims_per_id=ims_per_id,
+                            ids_per_batch=ids_per_batch,
+                            target_image_size=im_size,
+                            data_gen_args=data_gen_args_train,
+                            preprocess_unit=True,
+                            DATA=data)
+
     model = get_model(net, model_args)
+
+    if database == 'skillup':
+        dl = ProductDataLoader(**data_loader_args)
+    else:
+        dl = DataLoader(**data_loader_args)
 
     if net == 'emb+soft':
         losses = {"embedding_output": tl_object.loss, "class_output": "categorical_crossentropy"}
@@ -142,8 +151,8 @@ def main():
 
     model, history = train_model(model, model_weights_path, DATA=data,
                                  epochs=int(epochs), ids_per_batch=ids_per_batch,
-                                 ims_per_id=ims_per_id, data_gen_args_fit=data_gen_args_train,
-                                 log_dir=log_dir, im_size=(input_size[0], input_size[1]),
+                                 ims_per_id=ims_per_id, dataloader=dl,
+                                 log_dir=log_dir, im_size=im_size,
                                  compile_args=compile_args)
 
     model.compile(loss='mse', optimizer='adam')
