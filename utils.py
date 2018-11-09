@@ -122,8 +122,8 @@ def get_database(database):
     x_train -= mean
     x_test -= mean
     input_shape = x_train.shape[1:]
-    y_train = y_train.astype(np.int32)
-    y_test = y_test.astype(np.int32)
+    y_train = y_train.astype(np.int32).reshape(-1, 1)
+    y_test = y_test.astype(np.int32).reshape(-1, 1)
     data = (x_train, y_train), (x_test, y_test)
     return data, input_shape
 

@@ -73,6 +73,9 @@ class DataLoader(object):
     def get_total_steps(self):
         return len(self.y_train) / self.batch_size
 
+    def get_test_steps(self):
+        return len(self.y_test) / self.batch_size
+
     @staticmethod
     def copy_dict(original_dict):
         ''' Copy a dict to another, because the only assignment =,

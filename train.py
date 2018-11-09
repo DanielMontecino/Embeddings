@@ -2,6 +2,7 @@ from HTLDataloader import DataLoader
 from TripletLoss import TripletLoss
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, TensorBoard, EarlyStopping, LearningRateScheduler
 from keras import optimizers
+from keras.preprocessing.image import ImageDataGenerator
 
 from utils import get_dirs, get_database, get_parallel_model, get_model
 from visualize_embeddings import visualize_embeddings
@@ -51,14 +52,29 @@ def train_model(model, model_weights_path, DATA, epochs=50, ids_per_batch=6, ims
     try:
         (x_train, y_train), (x_test, y_test) = DATA
         model.compile(**compile_args)
-        #history = model.fit(x=x_train, y=y_train, batch_size=ims_per_id * ids_per_batch,
-        #                    epochs=epochs, verbose=2, callbacks=callbacks, validation_data=(x_test, y_test))
+        if 'loss_weights' in compile_args.keys():
+            from sklearn.preprocessing import OneHotEncoder
+            enc = OneHotEncoder(categories='auto')
+            y_train_OH = enc.fit_transform(y_train)
+            y_test_OH = enc.fit_transform(y_test)
 
-        history = model.fit_generator(generator=fit_generator,
-                                       steps_per_epoch=steps_per_epoch_fit,
-                                       epochs=epochs,
-                                       verbose=2,
-                                       callbacks=callbacks, validation_data=(x_test, y_test))
+            history = model.fit(x_train,
+                                {"embedding_output": y_train, "class_output": y_train_OH},
+                                validation_data=(x_test,
+                                                 {"embedding_output": y_test, "class_output": y_test_OH}),
+                                epochs=epochs,
+                                verbose=2, batch_size=ims_per_id * ids_per_batch, callbacks=callbacks)
+
+        else:
+            #history = model.fit(x=x_train, y=y_train, batch_size=ims_per_id * ids_per_batch,
+            #                    epochs=epochs, verbose=2, callbacks=callbacks, validation_data=(x_test, y_test))
+
+            history = model.fit_generator(generator=fit_generator,
+                                           steps_per_epoch=steps_per_epoch_fit,
+                                           epochs=epochs,
+                                           verbose=2,
+                                           callbacks=callbacks, validation_data=dl.get_test_generator(),
+                                          validation_steps=dl.get_test_steps())
 
         return model, history
     except KeyboardInterrupt:
@@ -69,17 +85,17 @@ def train_model(model, model_weights_path, DATA, epochs=50, ids_per_batch=6, ims
 def main():
     # General parameters
     database = ['cifar10', 'mnist', 'fashion_mnist'][0]
-    epochs = 50
-    learn_rate = 0.001
+    epochs = 100
+    learn_rate = 0.00001
     decay = (learn_rate / epochs) * 1
     ims_per_id = 4*4
     ids_per_batch = 8
-    margin = 0.2
+    margin = 0.3
     embedding_size = 64
     squared = False
 
     # built model's parameters
-    dropout = 0.3
+    dropout = 0.25
     blocks = 3
     weight_decay = 1e-4 * 0
 
