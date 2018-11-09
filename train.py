@@ -45,9 +45,9 @@ def train_model(model, model_weights_path, DATA, epochs=50, ids_per_batch=6, ims
                                    min_lr=0.5e-6)
     callbacks = [ModelCheckpoint(model_weights_path), tensorboard, early_stop]
 
-    steps_per_epoch_fit = dl.get_total_steps()
+    steps_per_epoch_fit = dl.get_train_steps()
 
-    fit_generator = dl.get_generator()
+    fit_generator = dl.train_generator()
 
     try:
         (x_train, y_train), (x_test, y_test) = DATA
@@ -70,10 +70,10 @@ def train_model(model, model_weights_path, DATA, epochs=50, ids_per_batch=6, ims
             #                    epochs=epochs, verbose=2, callbacks=callbacks, validation_data=(x_test, y_test))
 
             history = model.fit_generator(generator=fit_generator,
-                                           steps_per_epoch=steps_per_epoch_fit,
-                                           epochs=epochs,
-                                           verbose=2,
-                                           callbacks=callbacks, validation_data=dl.get_test_generator(),
+                                          steps_per_epoch=steps_per_epoch_fit,
+                                          epochs=epochs,
+                                          verbose=2,
+                                          callbacks=callbacks, validation_data=dl.test_generator(),
                                           validation_steps=dl.get_test_steps())
 
         return model, history
