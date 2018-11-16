@@ -21,6 +21,7 @@ def main():
     embedding_size = 64
     squared = False
     data_augmentation = False
+    patience = 25
 
     # built model's parameters
     dropout = 0.3
@@ -60,7 +61,8 @@ def main():
                       blocks=blocks,
                       n_channels=n_channels,
                       weight_decay=weight_decay,
-                      layer_limit=173)
+                      layer_limit=173,
+                      patience=patience)
 
     data_loader_args = dict(path=path,
                             ims_per_id=ims_per_id,

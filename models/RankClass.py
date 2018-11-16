@@ -93,5 +93,4 @@ class RankClassNet(TemplateNet):
                        epochs=epochs, verbose=2, batch_size=batch_size, callbacks=callbacks)
 
     def get_callbacks(self, model_weights_path, log_dir):
-        early_stop = EarlyStopping(monitor='val_loss', min_delta=0, patience=10, restore_best_weights=True)
-        return super().get_callbacks(model_weights_path, log_dir) + [early_stop]
+        return super().get_callbacks(model_weights_path, log_dir)

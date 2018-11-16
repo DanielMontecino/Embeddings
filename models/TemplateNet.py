@@ -1,4 +1,4 @@
-from keras.callbacks import TensorBoard, ModelCheckpoint
+from keras.callbacks import TensorBoard, ModelCheckpoint, EarlyStopping
 import os
 import tensorflow as tf
 from keras.utils import multi_gpu_model
@@ -9,8 +9,9 @@ class TemplateNet(object):
     variables.
     '''
 
-    def __init__(self):
+    def __init__(self, patience=10):
         self.model = None
+        self.patience = patience
         self.set_model()
 
     def def_model(self):
@@ -26,7 +27,9 @@ class TemplateNet(object):
 
     def get_callbacks(self, model_weights_path, log_dir):
         tensorboard = TensorBoard(log_dir=log_dir, update_freq='epoch')
-        return [ModelCheckpoint(model_weights_path), tensorboard]
+        early_stop = EarlyStopping(monitor='val_loss', min_delta=0, patience=self.patience,
+                                   restore_best_weights=True)
+        return [ModelCheckpoint(model_weights_path), tensorboard, early_stop]
 
     def compile(self, optimizer, loss):
         raise NotImplementedError("This method is not implemented")
