@@ -22,7 +22,7 @@ def visualize_embeddings(database='mnist', model_dir='exp/mnist/run_13/', model_
     data, input_size = get_database(database)
     _, (x_test, y_test) = data
     # Load the parameters from json file
-    if model is None:
+    if model is None or True:
         tf.reset_default_graph()
         K.clear_session()
         estimator = load_model(model_dir+model_name)

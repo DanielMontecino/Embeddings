@@ -981,3 +981,4 @@ def cluster_loss(labels,
   summary.scalar('losses/score_gt', score_gt)
 
   return clustering_loss
+

@@ -1,10 +1,9 @@
-from HTLDataloader import DataLoader, ProductDataLoader
+from others.HTLDataloader import DataLoader, ProductDataLoader
 from TripletLoss import TripletLoss
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, TensorBoard, EarlyStopping, LearningRateScheduler
 from keras import optimizers
-from keras.preprocessing.image import ImageDataGenerator
 
-from utils import get_dirs, get_database, get_parallel_model, get_model
+from utils import get_dirs, get_database, get_model
 from visualize_embeddings import visualize_embeddings
 
 import os
@@ -56,17 +55,18 @@ def train_model(model, model_weights_path, DATA, epochs=50, ids_per_batch=6, ims
                                 verbose=2, batch_size=ims_per_id * ids_per_batch, callbacks=callbacks)
 
         else:
-            #(x_train, y_train), (x_test, y_test) = DATA
-            #history = model.fit(x=x_train, y=y_train, batch_size=ims_per_id * ids_per_batch,
-            #                    epochs=epochs, verbose=2, callbacks=callbacks, validation_data=(x_test, y_test))
-
-            history = model.fit_generator(generator=dataloader.train_generator(),
+            (x_train, y_train), (x_test, y_test) = DATA
+            history = model.fit(x=x_train, y=y_train, batch_size=ims_per_id * ids_per_batch,
+                                epochs=epochs, verbose=2, callbacks=callbacks, validation_data=(x_test, y_test))
+            '''
+            history = model.fit_generator(generator=dataloader.triplet_train_generator(),
                                           steps_per_epoch=dataloader.get_train_steps(),
                                           epochs=epochs,
                                           verbose=2,
                                           callbacks=callbacks,
-                                          validation_data=dataloader.test_generator(),
+                                          validation_data=dataloader.triplet_test_generator(),
                                           validation_steps=dataloader.get_test_steps())
+            '''
 
         return model, history
     except KeyboardInterrupt:
@@ -76,20 +76,21 @@ def train_model(model, model_weights_path, DATA, epochs=50, ids_per_batch=6, ims
 
 def main():
     # General parameters
-    database = ['cifar10', 'mnist', 'fashion_mnist', 'skillup'][-1]
-    net = ['base', 'cifar', 'emb+soft', 'resnet50', 'resnet20'][0]
+    database = ['cifar10', 'mnist', 'fashion_mnist', 'skillup'][0]
+    net = ['base', 'cifar', 'emb+soft', 'resnet50', 'resnet20'][1]
     epochs = 100
-    learn_rate = 0.00001
+    learn_rate = 0.1
     decay = (learn_rate / epochs) * 1
     ims_per_id = 4
-    ids_per_batch = 12
+    ids_per_batch = 10
     margin = 0.3
     embedding_size = 64
     squared = False
+    data_augmentation = False
 
     # built model's parameters
-    dropout = 0.25
-    blocks = 4
+    dropout = 0.1
+    blocks = 3
     n_channels = 32
     weight_decay = 1e-4 * 0
 
@@ -114,7 +115,8 @@ def main():
                                height_shift_range=0.1,  # randomly shift images vertically (fraction of total height)
                                horizontal_flip=False,  # randomly flip images
                                vertical_flip=False)
-    data_gen_args_train = {}
+    if not data_augmentation:
+        data_gen_args_train = {}
 
     model_args = dict(embedding_dim=embedding_size,
                       input_shape=input_size,
@@ -147,7 +149,7 @@ def main():
                             loss_weights=loss_weights,
                             metrics=["accuracy"])
     else:
-        compile_args = dict(optimizer=opt, loss=tl_object.sm_loss)
+        compile_args = dict(optimizer=opt, loss=tl_object.loss)
 
     model, history = train_model(model, model_weights_path, DATA=data,
                                  epochs=int(epochs), ids_per_batch=ids_per_batch,

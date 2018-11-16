@@ -9,11 +9,17 @@ import tensorflow as tf
 from keras.datasets import mnist, fashion_mnist, cifar10
 from keras.utils import multi_gpu_model
 
-from Models import get_base_model, get_cifar_model, get_emb_soft_model, get_pretrained_model
-from resnet_model import resnet_v1
+from others.Models import get_base_model, get_cifar_model, get_emb_soft_model, get_pretrained_model
+from models.resnet_model import resnet_v1
+
+from models.Base import BaseNet
+from models.CifarNet import CifarNet
+from models.LocalFeats import LocalFeatNet
+from models.Resnet import Resnet50, Resnet20
+from models.RankClass import RankClassNet
 
 
-class Params():
+class Params:
     """Class that loads hyperparameters from a json file.
     Example:
     ```
@@ -103,7 +109,7 @@ def get_dirs(database):
 
 
 def get_database(database):
-    if database =='mnist':
+    if database == 'mnist':
         (x_train, y_train), (x_test, y_test) = mnist.load_data()
     elif database == 'fashion_mnist':
         (x_train, y_train), (x_test, y_test) = fashion_mnist.load_data()
@@ -111,7 +117,6 @@ def get_database(database):
         (x_train, y_train), (x_test, y_test) = cifar10.load_data()
     elif database == 'skillup':
         return None, (224, 224, 3)
-
     else:
         print("Invalid database name")
         raise Exception
@@ -151,3 +156,21 @@ def get_model(net, model_args):
         print('Invalid database')
         raise KeyError
     return model
+
+
+def get_net_object(net, model_args):
+    if net == 'base':
+        return BaseNet(**model_args)
+    elif net == 'cifar':
+        return CifarNet(**model_args)
+    elif net == 'emb+soft':
+        return RankClassNet(**model_args)
+    elif net == 'resnet50':
+        return Resnet50(**model_args)
+    elif net == 'resnet20':
+        return Resnet20(**model_args)
+    elif net == 'local_feat':
+        return LocalFeatNet(**model_args)
+    else:
+        print('Invalid database')
+        raise KeyError
