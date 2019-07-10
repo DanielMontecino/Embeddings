@@ -3,7 +3,7 @@ from keras.applications.resnet50 import ResNet50
 from models.TemplateNet import TemplateNet
 from keras.models import Model
 from keras import Input
-from keras.layers import AveragePooling2D, BatchNormalization, LeakyReLU, ReLU, Reshape, Conv2D, Flatten
+from keras.layers import AveragePooling2D, BatchNormalization, LeakyReLU, Reshape, Conv2D, Flatten
 
 
 class LocalFeatNet(TemplateNet):

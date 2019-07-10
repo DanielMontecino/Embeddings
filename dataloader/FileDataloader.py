@@ -2,13 +2,14 @@
 from dataloader.DataloaderTemplate import DataloaderTemplate
 from keras.preprocessing import image
 from keras.applications.resnet50 import preprocess_input
+from random import shuffle
 
 import numpy as np
 
 
 class FileDataloader(DataloaderTemplate):
 
-    def __init__(self, path, pre_process_unit=True, **kwards):
+    def __init__(self, path, pre_process_unit=False, **kwards):
         self.train_txt = path + '/bounding_box_train.txt'
         self.test_txt = path + '/query.txt'
         self.preprocess_unit = pre_process_unit
@@ -30,6 +31,8 @@ class FileDataloader(DataloaderTemplate):
                     im_dict[im_class] = [im_path]
                 else:
                     im_dict[im_class].append(im_path)
+        for key in im_dict.keys():
+            shuffle(im_dict[key])
         return im_dict
 
     def get_image(self, im_link, is_train):
@@ -39,5 +42,5 @@ class FileDataloader(DataloaderTemplate):
         if self.preprocess_unit:
             x = preprocess_input(x)
         else:
-            x /= 255.
+            x = x/255.
         return x

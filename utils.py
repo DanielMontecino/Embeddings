@@ -15,10 +15,10 @@ from models.resnet_model import resnet_v1
 from models.Base import BaseNet
 from models.CifarNet import CifarNet
 from models.LocalFeats import LocalFeatNet
-from models.Resnet import Resnet50, Resnet20
+from models.Resnet import Resnet50, Resnet20, MobileNet
 from models.RankClass import RankClassNet
 
-
+            
 class Params:
     """Class that loads hyperparameters from a json file.
     Example:
@@ -152,13 +152,15 @@ def get_model(net, model_args):
         model = get_pretrained_model(**model_args)
     elif net == 'resnet20':
         model = resnet_v1(**model_args)
+    elif net == 'mobile':
+        model = MobileNet(*model_args)
     else:
         print('Invalid database')
         raise KeyError
     return model
 
 
-def get_net_object(net, model_args):
+def get_net_object(net, **model_args):
     if net == 'base':
         return BaseNet(**model_args)
     elif net == 'cifar':
@@ -171,6 +173,12 @@ def get_net_object(net, model_args):
         return Resnet20(**model_args)
     elif net == 'local_feat':
         return LocalFeatNet(**model_args)
+    elif net == 'mobile':
+        model = MobileNet(**model_args)
     else:
         print('Invalid database')
         raise KeyError
+        
+        
+
+

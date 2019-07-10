@@ -108,7 +108,7 @@ class DataloaderTemplate(object):
                 yield x_batch, [y_batch for k_ in range(self.n_out)]
 
     def get_image(self, im_link, is_train):
-        raise NotImplementedError("This methos is not implemented")
+        raise NotImplementedError("This method is not implemented")
 
     def triplet_train_generator(self):
         return self.triplet_generator(self.train_dict, self.train_labels_list, self.train_ids_per_batch)
