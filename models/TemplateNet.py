@@ -59,12 +59,12 @@ class TemplateNet(object):
         callbacks.append(warm_up_lr)
         
         try:
-            self.model.fit_generator(generator=dataloader.triplet_train_generator(),
+            self.model.fit_generator(generator=dataloader.triplet_train_generator(train=True),
                                      steps_per_epoch=dataloader.get_train_steps(),
                                      epochs=epochs,
                                      verbose=1,
                                      callbacks=callbacks,
-                                     validation_data=dataloader.triplet_test_generator(),
+                                     validation_data=dataloader.triplet_test_generator(train=False),
                                      validation_steps=dataloader.get_test_steps())
         except KeyboardInterrupt:
             pass

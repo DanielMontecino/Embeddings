@@ -97,9 +97,10 @@ class DataloaderTemplate(object):
                     x_batch.append(im)
                     y_batch.append(id_)
             x_batch = np.concatenate(x_batch)
-            datagen = ImageDataGenerator(**self.data_gen_args)
-            datagen.fit(x_batch)
-            x_batch = next(datagen.flow(x_batch, shuffle=False,
+            if len(self.data_gen_args.keys()) > 0 and is_train:
+                datagen = ImageDataGenerator(**self.data_gen_args)
+                datagen.fit(x_batch)
+                x_batch = next(datagen.flow(x_batch, shuffle=False,
                                         batch_size=batch_size))
             y_batch = np.array(y_batch).astype(np.int32)
             if self.n_out == 1:
@@ -110,11 +111,11 @@ class DataloaderTemplate(object):
     def get_image(self, im_link, is_train):
         raise NotImplementedError("This method is not implemented")
 
-    def triplet_train_generator(self):
-        return self.triplet_generator(self.train_dict, self.train_labels_list, self.train_ids_per_batch)
+    def triplet_train_generator(self, train=True):
+        return self.triplet_generator(self.train_dict, self.train_labels_list, self.train_ids_per_batch, train)
 
-    def triplet_test_generator(self):
-        return self.triplet_generator(self.test_dict, self.test_labels_list, self.train_ids_per_batch, False)
+    def triplet_test_generator(self, train=False):
+        return self.triplet_generator(self.test_dict, self.test_labels_list, self.test_ids_per_batch, train)
 
     def get_train_steps(self):
         return self.get_size(self.train_dict) / float(self.train_ids_per_batch*self.ims_per_id)

@@ -1,7 +1,7 @@
 from keras import Sequential
 from keras.callbacks import TensorBoard, EarlyStopping, ReduceLROnPlateau, LearningRateScheduler, ModelCheckpoint
 from keras.layers import Conv2D, regularizers, BatchNormalization, Activation, MaxPooling2D, SpatialDropout2D, Input
-from keras.layers import Dense, Flatten, Lambda
+from keras.layers import Dense, Flatten, Lambda, LocallyConnected2D, ZeroPadding2D, Dropout
 from keras.models import Model
 import keras.backend as K
 
@@ -10,7 +10,7 @@ from models.TemplateNet import TemplateNet
 
 class BaseNet(TemplateNet):
 
-    def __init__(self, embedding_dim=512, input_shape=(32, 32, 3), drop=0.25, blocks=2, n_channels=32,
+    def __init__(self, embedding_dim=512, input_shape=(32, 32, 3), drop=0.25, blocks=2, locallyC_blocks=0, n_channels=32,
                  weight_decay=1e-4, **kwargs):
         self.embedding_dim = embedding_dim
         self.input_size = input_shape
@@ -18,20 +18,26 @@ class BaseNet(TemplateNet):
         self.blocks = blocks
         self.n_channels = n_channels
         self.weight_decay = weight_decay
+        self.locallyC_blocks = locallyC_blocks
         super().__init__(**kwargs)
         
     def def_model(self):
         channels = self.n_channels
         inp = Input(shape=self.input_size)
+        x = inp
         x = BatchNormalization()(inp)
-        for _ in range(self.blocks):
+        for i in range(self.blocks):
+            
             x = Conv2D(channels, 3, padding='same', activation='relu')(x)
             x = BatchNormalization()(x)
+            #x = ZeroPadding2D(padding=((0,1), (0,1)))(x)
             x = MaxPooling2D(pool_size=2, strides=2)(x)
-            x = SpatialDropout2D(rate=self.drop)(x)
+            x = Dropout(rate=self.drop)(x)
             channels = int(channels * 1.5)
+        for i in range(self.locallyC_blocks):
+            x = LocallyConnected2D(channels, 1, padding='valid', activation='relu')(x)
         x = Flatten()(x)
-        x = Lambda(lambda x: K.l2_normalize(x, axis=-1))(x)
+        #x = Lambda(lambda x: K.l2_normalize(x, axis=-1))(x)
         model = Model(inp, x)
         model.summary()
         return model

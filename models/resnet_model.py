@@ -25,11 +25,11 @@ from keras.models import Model
 # ResNet164 |27(18)| -----     | 94.07     | -----     | 94.54     | ---(---)
 # ResNet1001| (111)| -----     | 92.39     | -----     | 95.08+-.14| ---(---)
 # ---------------------------------------------------------------------------
-n = 3
+n = 2
 
 # Model version
 # Orig paper: version = 1 (ResNet v1), Improved ResNet: version = 2 (ResNet v2)
-version = 1
+version = 2
 
 # Computed depth from supplied model parameter n
 if version == 1:
@@ -232,6 +232,8 @@ def resnet_v2(input_shape, depth, num_classes=10):
 
     # Add classifier on top.
     # v2 has BN-ReLU before Pooling
+    model = Model(inputs=inputs, outputs=x)
+    return model
     x = BatchNormalization()(x)
     x = Activation('relu')(x)
     x = AveragePooling2D(pool_size=8)(x)
