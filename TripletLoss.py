@@ -105,6 +105,7 @@ class TripletLoss(object):
 
     def sm_loss(self, y_true, y_pred):
         from tensorflow.python.ops import array_ops
+        y_pred = normalize(y_pred, axis=-1)
         lshape = array_ops.shape(y_pred)
         y_true = array_ops.reshape(y_true, (lshape[0],))
         return triplet_semihard_loss(y_true, y_pred, self.margin)

@@ -127,7 +127,7 @@ data_loader_args = dict(path=path,
                         ids_per_batch=ids_per_batch,
                         target_image_size=im_size,
                         data_gen_args=data_gen_args_train,
-                        preprocess_unit=preprocess,
+                        pre_process_unit=preprocess,
                         data=data)
 
 if database == 'skillup':
